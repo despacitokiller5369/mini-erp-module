@@ -45,20 +45,27 @@ class Dashboard extends Component
         if (!Auth::user()->isManager()) {
             return collect();
         }
-        return Holiday::pending()
+        
+        return Holiday::query()
+            ->where('status', \App\Domain\WorkforcePlanning\Enums\HolidayStatus::Pending->value)
             ->where('user_id', '!=', Auth::id())
+            ->with('user')
+            ->orderBy('created_at')
             ->get();
     }
 
     #[Computed]
     public function upcomingShifts()
     {
-        // Get the user's upcoming shifts (from today onwards)
         return ShiftAssignment::where('user_id', Auth::id())
             ->whereHas('shift', function ($query) {
-                $query->whereDate('date', '>=', now());
+                $query->whereBetween('date', [now()->format('Y-m-d'), now()->addDays(7)->format('Y-m-d')]);
             })
-            ->count();
+            ->with('shift')
+            ->get()
+            ->sortBy(function ($assignment) {
+                return $assignment->shift->date->timestamp;
+        });
     }
 
     public function render()
@@ -67,7 +74,15 @@ class Dashboard extends Component
         <div class="max-w-7xl mx-auto p-6 space-y-6">
             
             <div class="flex justify-between items-center">
-                <h1 class="text-3xl font-bold text-gray-800">Welcome back, {{ Auth::user()->name }}</h1>
+                <div class="flex items-center gap-3">
+                    <h1 class="text-3xl font-bold text-gray-800">Welcome back, {{ Auth::user()->name }}</h1>
+                    <span class="px-3 py-1 text-sm font-semibold rounded-full 
+                        {{ Auth::user()->role === 'admin' ? 'bg-red-100 text-red-800' : '' }}
+                        {{ Auth::user()->role === 'manager' ? 'bg-blue-100 text-blue-800' : '' }}
+                        {{ Auth::user()->role === 'employee' ? 'bg-gray-100 text-gray-800' : '' }}">
+                        {{ ucfirst(Auth::user()->role->value) }}
+                    </span>
+                </div>
             </div>
 
             <!-- Summary Cards -->
@@ -92,22 +107,63 @@ class Dashboard extends Component
                 <!-- Pending Holidays Card -->
                 <div class="bg-white p-6 rounded-lg shadow border-l-4 border-yellow-500 cursor-pointer hover:bg-gray-50 transition" wire:click="setTab('holidays')">
                     <h3 class="text-gray-500 text-sm font-medium uppercase tracking-wider">Pending Holidays</h3>
-                    <div class="mt-2">
-                        @if(Auth::user()->isManager())
-                            <span class="text-3xl font-extrabold text-gray-900">{{ $this->pendingHolidays->count() }}</span>
-                            <span class="ml-1 text-sm font-semibold text-gray-500">to review</span>
-                        @else
-                            <span class="text-sm italic text-gray-500">N/A (Managers)</span>
-                        @endif
-                    </div>
+                    
+                    @if(Auth::user()->isManager())
+                        <div class="mt-2">
+                            <div class="flex items-baseline gap-2 mb-2">
+                                <span class="text-3xl font-extrabold text-gray-900">{{ $this->pendingHolidays->count() }}</span>
+                                <span class="text-sm font-semibold text-gray-500">to review</span>
+                            </div>
+                            
+                            @if($this->pendingHolidays->count() > 0)
+                                <ul class="space-y-1">
+                                    @foreach($this->pendingHolidays->take(3) as $holiday)
+                                        <li class="text-xs text-gray-600 flex items-center gap-1">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-yellow-400 inline-block"></span>
+                                            <span class="font-medium truncate max-w-[80px]">{{ $holiday->user->name }}</span>
+                                            <span class="text-gray-500 whitespace-nowrap">
+                                                ({{ $holiday->start_date->format('M d') }} - {{ $holiday->end_date->format('M d') }})
+                                            </span>
+                                        </li>
+                                    @endforeach
+                                    @if($this->pendingHolidays->count() > 3)
+                                        <li class="text-xs text-yellow-600 font-medium">+ {{ $this->pendingHolidays->count() - 3 }} more...</li>
+                                    @endif
+                                </ul>
+                            @endif
+                        </div>
+                    @else
+                        <div class="mt-2 text-sm italic text-gray-500">
+                            N/A (Managers only)
+                        </div>
+                    @endif
                 </div>
 
                 <!-- Upcoming Shifts Card -->
                 <div class="bg-white p-6 rounded-lg shadow border-l-4 border-purple-500 cursor-pointer hover:bg-gray-50 transition" wire:click="setTab('shifts')">
-                    <h3 class="text-gray-500 text-sm font-medium uppercase tracking-wider">Upcoming Shifts</h3>
+                    <h3 class="text-gray-500 text-sm font-medium uppercase tracking-wider">Shifts (Next 7 Days)</h3>
                     <div class="mt-2">
-                        <span class="text-3xl font-extrabold text-gray-900">{{ $this->upcomingShifts }}</span>
-                        <span class="ml-1 text-sm font-semibold text-gray-500">assigned</span>
+                        <div class="flex items-baseline gap-2 mb-2">
+                            <span class="text-3xl font-extrabold text-gray-900">{{ $this->upcomingShifts->count() }}</span>
+                            <span class="text-sm font-semibold text-gray-500">assigned</span>
+                        </div>
+                        
+                        @if($this->upcomingShifts->count() > 0)
+                            <ul class="space-y-1">
+                                @foreach($this->upcomingShifts->take(3) as $assignment)
+                                    <li class="text-xs text-gray-600 flex items-center gap-1">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-purple-400 inline-block"></span>
+                                        <span class="font-medium">{{ $assignment->shift->date->format('D, M d') }}</span>
+                                        <span class="text-gray-500">({{ ucfirst($assignment->shift->label->value) }})</span>
+                                    </li>
+                                @endforeach
+                                @if($this->upcomingShifts->count() > 3)
+                                    <li class="text-xs text-purple-600 font-medium">+ {{ $this->upcomingShifts->count() - 3 }} more...</li>
+                                @endif
+                            </ul>
+                        @else
+                            <span class="text-sm italic text-gray-500">No shifts scheduled.</span>
+                        @endif
                     </div>
                 </div>
             </div>
