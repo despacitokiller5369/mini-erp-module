@@ -49,4 +49,9 @@ class User extends Authenticatable
     {
         return $this->role === UserRole::Admin;
     }
+
+    protected static function newFactory()
+    {
+        return \Database\Factories\UserFactory::new(); 
+    }
 }
