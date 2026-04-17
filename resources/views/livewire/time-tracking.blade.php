@@ -1,5 +1,4 @@
 <div class="max-w-4xl mx-auto p-6 space-y-8">
-            <!-- Header & Weekly Total -->
             <div class="flex justify-between items-center bg-white p-6 rounded-lg shadow">
                 <h1 class="text-2xl font-bold text-gray-800">Time Tracking</h1>
                 <div class="text-right">
@@ -15,7 +14,6 @@
             @endif
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <!-- Live Clock In/Out -->
                 <div class="bg-white p-6 rounded-lg shadow text-center space-y-4">
                     <h2 class="text-lg font-semibold text-gray-700">Current Status</h2>
                     
@@ -34,7 +32,6 @@
                     @endif
                 </div>
 
-                <!-- Manual Entry Form -->
                 <div class="bg-white p-6 rounded-lg shadow space-y-4">
                     <h2 class="text-lg font-semibold text-gray-700">Add Manual Entry</h2>
                     <form wire:submit="createManualEntry" class="space-y-3">
@@ -62,7 +59,6 @@
                 </div>
             </div>
 
-            <!-- This Week's Logs -->
             <div class="bg-white rounded-lg shadow overflow-hidden">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
